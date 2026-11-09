@@ -16,7 +16,7 @@ Uptime Kuma.
 
 ## Uso
 
-Edite `group_vars/kiosk.yml`:
+Edite `group_vars`:
 
 ```yaml
 kiosk_user: kiosk
