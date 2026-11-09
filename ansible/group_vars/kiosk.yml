@@ -1,0 +1,20 @@
+---
+kiosk_user: kiosk
+kiosk_home: "/home/{{ kiosk_user }}"
+
+# Troque pela Status Page pública do Uptime Kuma.
+kuma_url: "http://IP-DO-KUMA:3001/status/SEU-SLUG"
+
+chrome_deb_url: "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"
+chrome_deb_path: /tmp/google-chrome-stable_current_amd64.deb
+
+# Deixe false para preservar a rede já configurada pela máquina.
+kiosk_manage_network: false
+kiosk_network:
+  interface: eno1
+  address: 192.0.2.10/24
+  gateway: 192.0.2.1
+  dns:
+    - 192.0.2.1
+    - 1.1.1.1
+  search: []

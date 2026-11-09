@@ -1,0 +1,21 @@
+network:
+  version: 2
+  ethernets:
+    {{ kiosk_network.interface }}:
+      dhcp4: false
+      addresses:
+        - {{ kiosk_network.address }}
+      routes:
+        - to: default
+          via: {{ kiosk_network.gateway }}
+      nameservers:
+        addresses:
+{% for server in kiosk_network.dns %}
+          - {{ server }}
+{% endfor %}
+{% if kiosk_network.search | length > 0 %}
+        search:
+{% for domain in kiosk_network.search %}
+          - {{ domain }}
+{% endfor %}
+{% endif %}

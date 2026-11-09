@@ -1,0 +1,23 @@
+[Unit]
+Description=Uptime Kuma kiosk browser
+After=graphical-session.target
+
+[Service]
+Type=simple
+Environment=DISPLAY=:0
+Environment=XAUTHORITY={{ kiosk_home }}/.Xauthority
+ExecStart=/usr/bin/google-chrome \
+  --kiosk \
+  --noerrdialogs \
+  --disable-infobars \
+  --disable-session-crashed-bubble \
+  --disable-notifications \
+  --force-dark-mode \
+  --disable-pinch \
+  --overscroll-history-navigation=0 \
+  {{ kuma_url }}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

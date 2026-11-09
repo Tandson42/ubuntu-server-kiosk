@@ -1,0 +1,142 @@
+---
+- name: Configure Ubuntu as a Uptime Kuma kiosk
+  hosts: kiosk
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - group_vars/kiosk.yml
+
+  pre_tasks:
+    - name: Require Ubuntu
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+        fail_msg: "Este playbook foi preparado para Ubuntu."
+
+    - name: Validate required kiosk variables
+      ansible.builtin.assert:
+        that:
+          - kiosk_user | length > 0
+          - kuma_url is match('^https?://')
+          - not (kiosk_manage_network | bool) or kiosk_network.interface | length > 0
+
+  tasks:
+    - name: Install kiosk packages
+      ansible.builtin.apt:
+        name:
+          - xorg
+          - openbox
+          - unclutter
+          - x11-xserver-utils
+          - wget
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Download Google Chrome package
+      ansible.builtin.get_url:
+        url: "{{ chrome_deb_url }}"
+        dest: "{{ chrome_deb_path }}"
+        mode: "0644"
+
+    - name: Install Google Chrome
+      ansible.builtin.apt:
+        deb: "{{ chrome_deb_path }}"
+        state: present
+
+    - name: Remove downloaded Chrome package
+      ansible.builtin.file:
+        path: "{{ chrome_deb_path }}"
+        state: absent
+
+    - name: Create kiosk configuration directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ kiosk_user }}"
+        group: "{{ kiosk_user }}"
+        mode: "0755"
+      loop:
+        - "{{ kiosk_home }}/.config/openbox"
+        - "{{ kiosk_home }}/.config/systemd/user"
+
+    - name: Install Openbox autostart
+      ansible.builtin.template:
+        src: openbox-autostart.j2
+        dest: "{{ kiosk_home }}/.config/openbox/autostart"
+        owner: "{{ kiosk_user }}"
+        group: "{{ kiosk_user }}"
+        mode: "0755"
+
+    - name: Install browser user service
+      ansible.builtin.template:
+        src: kiosk-browser.service.j2
+        dest: "{{ kiosk_home }}/.config/systemd/user/kiosk-browser.service"
+        owner: "{{ kiosk_user }}"
+        group: "{{ kiosk_user }}"
+        mode: "0644"
+
+    - name: Install kiosk shell profile
+      ansible.builtin.template:
+        src: bash_profile.j2
+        dest: "{{ kiosk_home }}/.bash_profile"
+        owner: "{{ kiosk_user }}"
+        group: "{{ kiosk_user }}"
+        mode: "0644"
+
+    - name: Configure tty1 autologin
+      ansible.builtin.template:
+        src: getty-autologin.conf.j2
+        dest: /etc/systemd/system/getty@tty1.service.d/autologin.conf
+        mode: "0644"
+      notify: Reload systemd
+
+    - name: Disable automatic update timers
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: false
+        state: stopped
+        masked: false
+      loop:
+        - unattended-upgrades.service
+        - apt-daily.timer
+        - apt-daily-upgrade.timer
+      failed_when: false
+
+    - name: Configure static network with Netplan
+      ansible.builtin.template:
+        src: netplan-kiosk.yaml.j2
+        dest: /etc/netplan/99-kiosk.yaml
+        mode: "0600"
+      when: kiosk_manage_network | bool
+      notify: Apply Netplan
+
+    - name: Enable lingering for kiosk user
+      ansible.builtin.command:
+        cmd: "loginctl enable-linger {{ kiosk_user }}"
+      changed_when: false
+
+    - name: Reload user service manager
+      become_user: "{{ kiosk_user }}"
+      ansible.builtin.systemd:
+        scope: user
+        daemon_reload: true
+
+    - name: Enable browser service
+      become_user: "{{ kiosk_user }}"
+      ansible.builtin.systemd:
+        name: kiosk-browser.service
+        scope: user
+        enabled: true
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+        name: getty@tty1.service
+
+    - name: Apply Netplan
+      ansible.builtin.command:
+        cmd: netplan apply
+      changed_when: true

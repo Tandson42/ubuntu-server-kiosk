@@ -1,0 +1,8 @@
+#!/bin/sh
+
+xset s off
+xset -dpms
+xset s noblank
+unclutter -idle 1 -root &
+
+systemctl --user restart kiosk-browser.service
